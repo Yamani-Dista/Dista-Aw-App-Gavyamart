@@ -1,0 +1,55 @@
+{% if customer.id %}
+  {%- assign uid = customer.id | hmac_sha256: 'Polina' -%}
+
+  <style>
+    .wishlist-icon {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      border-radius: 50%;
+      padding: 6px;
+      cursor: pointer;
+      z-index: 0;
+      transition: transform 0.2s ease;
+      background: rgba(255, 255, 255, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .wishlist-icon:hover {
+      transform: scale(1.1);
+    }
+
+    .wishlist-icon svg {
+      width: 20px;
+      height: 20px;
+      stroke: #000;
+      stroke-width: 1;
+    }
+  </style>
+
+  <script src="{{'getsetCookie.js' | asset_url }}" ></script>
+  <script src="{{ 'wishlist.min.js' | asset_url }}" ></script>
+ 
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+     window.wishlistIconManager = new WishlistIconManager({
+      customerId: '{{ customer.id }}',
+      storeUrl: '{{ shop.permanent_domain }}',
+      uid: '{{ uid }}',
+      currency: '{{ localization.country.currency.iso_code }}'
+    });
+
+    window.wishlistIconManager.init();
+  });
+  </script>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Account Page Icon",
+  "target": "body",
+  "settings": []
+}
+{% endschema %}

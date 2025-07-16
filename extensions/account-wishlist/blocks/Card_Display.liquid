@@ -1,0 +1,358 @@
+{% if customer.id %}
+  {%- assign uid = customer.id | hmac_sha256: 'Polina' -%}
+
+  <link rel="stylesheet" href="{{ 'Carousel.min.css' | asset_url }}">
+
+  <style>
+    .wishlist-items {
+      padding-top: 10px;
+    }
+
+    .no-wishlist {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 12px;
+      align-items: center;
+      padding: 20px;
+    }
+    .no-wishlist-content {
+      font-size: 16px;
+      font-weight: 500;
+    }
+  </style>
+  <div class="wishlist-items layout__boxed" style="display:none">
+    <div class="wishlist-heading">{{ block.settings['wishlist-title'] }}</div>
+    <div class="no-wishlist">
+      <div><img src="{{'logout.png' | asset_url}}" width="281px" height="168px"></div>
+      <div class="no-wishlist-content">No Wishlist Items Added!</div>
+    </div>
+  </div>
+  <div
+    class="layout__boxed wishlist-root wishlist-container"
+    style="opacity: 0; pointer-events: none; transition: opacity 0.3s;"
+    data-section-id="{{ section.id }}"
+    data-show-add-to-cart="{{ settings.showAddToCart }}"
+    data-show-buy-now="{{ settings.showBuyNow }}"
+    data-display-mode="{{ settings.displayMode }}"
+    data-products-per-row="{{ settings.productsPerRow }}"
+    data-initial-products="{{ settings.initialProducts }}"
+    data-card-layout="{{ settings.cardLayout }}"
+    data-currency="{{ localization.country.currency.iso_code }}"
+    {% if product %}
+      data-current-product-id="{{ product.id }}"
+    {% endif %}
+  >
+    <div class="wishlist-heading" style="display: none;">{{ block.settings['wishlist-title'] }}</div>
+    <div class="wishlist-carousel-wrapper" style="display: none;">
+      <button class="wishlist-carousel-prev" aria-label="Previous products">❮</button>
+      <div class="wishlist-carousel">
+      </div>
+      <button class="wishlist-carousel-next" aria-label="Next products">❯</button>
+    </div>
+    <div class="wishlist-grid" style="display: none;">
+    </div>
+    <div class="wishlist-show-more-container" style="display: none;">
+      <button class="wishlist-show-more-button">Show More</button>
+    </div>
+  </div>
+
+  <template id="product-template-wishlist">
+    {% render 'Product-card',
+      cardLayout: 'vertical',
+      add_to_cart_text: block.settings.add_to_cart_text,
+      buy_now_text: block.settings.buy_now_text
+    %}
+  </template>
+
+  <script src="{{ 'currency.js' | asset_url }}" async></script>
+  <script src="{{ 'getsetCookie.js' | asset_url }}" async></script>
+  <script src="{{ 'card.min.js' | asset_url }}" async></script>
+  <script>
+    class wishlistApp {
+      constructor(container) {
+        this.container = container;
+        this.carouselWrapper = container.querySelector('.wishlist-carousel-wrapper');
+        this.carousel = container.querySelector('.wishlist-carousel');
+        this.grid = container.querySelector('.wishlist-grid');
+        this.showMoreContainer = container.querySelector('.wishlist-show-more-container');
+        this.showMoreButton = container.querySelector('.wishlist-show-more-button');
+        this.prevBtn = container.querySelector('.wishlist-carousel-prev');
+        this.nextBtn = container.querySelector('.wishlist-carousel-next');
+        this.template = document.getElementById('product-template-wishlist');
+        this.titleElement = container.querySelector('.wishlist-heading');
+        this.currentProductId = this.container.dataset.currentProductId;
+
+        this.displayMode = 'carousel';
+        this.productsPerRow = 3;
+        this.initialProducts = 6;
+        this.showAddToCart = true;
+        this.showBuyNow = true;
+        this.currentlyShown = 0;
+        this.products = [];
+        this.reply = {};
+        this.carouselController = null;
+
+        document.addEventListener('wishlist:updated', () => {
+          this.fetchWishlist();
+        });
+        
+        window.money_format = '{{ shop.money_with_currency_format }}';
+      }
+
+      async init() {
+       await this.fetchWishlist();
+
+        if (this.titleElement) {
+          this.titleElement.textContent = this.container.dataset.wishlistTitle || 'Wishlist Products';
+        }
+
+        if (this.displayMode === 'carousel') {
+          this.carouselWrapper.style.display = 'block';
+          this.grid.style.display = 'none';
+        } else {
+          this.carouselWrapper.style.display = 'none';
+          this.grid.style.display = 'grid';
+        }
+      }
+
+      async fetchWishlist() {
+        const customerId = '{{ customer.id }}';
+        const storeUrl = '{{ shop.permanent_domain }}';
+        const uid = '{{ uid }}';
+        let jwtToken = window.WishlistUtils.getCookie('jwt');
+        let globalToken = jwtToken;
+
+        const currency = this.container.dataset.currency;
+        let settings;
+
+        {% comment %} try {
+          const response = await fetch(`/apps/apw/app/apiwishlist?type=css&storeUrl=${storeUrl}`);
+          settings = await response.json();
+        } catch (err) {
+          console.error('Error fetching settings:', err);
+        } {% endcomment %}
+        
+        
+        let products = [];
+        try {
+          const fetchUrl = `/apps/apw/app/apiwishlist?customerId=${customerId}&storeUrl=${storeUrl}&uid=${uid}&token=${
+            globalToken || ''
+          }&currency=${currency}`;
+          const response = await fetch(fetchUrl);
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const result = await response.json();
+          if (result.token && !jwtToken) {
+            globalToken = result.token;
+            window.WishlistUtils.setCookie('jwt', globalToken, 3.5);
+          }
+          products = result.reply?.data?.nodes || [];
+          settings = {css: result.css || {}, widgetSettings: result.widgetSettings || {} };
+          this.processSettings(settings);
+          this.processProducts(settings,products);
+        } catch (error) {
+          console.error('Fetch error:', error);
+          this.titleElement.style.display = 'none';
+        }
+      }
+
+      processSettings(data) {
+        if (data.css) {
+          this.reply = {
+            displayMode: data.css.displayMode || 'carousel',
+            productsPerRow: parseInt(data.css.productsPerRow) || 3,
+            initialProducts: parseInt(data.css.initialProducts) || 6,
+            showAddToCart: data.css.showAddToCart ?? true,
+            showBuyNow: data.css.showBuyNow ?? true,
+            cardLayout: data.css.cardLayout || 'vertical',
+            css: data.css.css,
+          };
+
+          this.container.dataset.displayMode = this.reply.displayMode;
+          this.container.dataset.cardLayout = this.reply.cardLayout;
+          this.container.dataset.productsPerRow = this.reply.productsPerRow;
+          this.container.dataset.initialProducts = this.reply.initialProducts;
+          this.container.dataset.showAddToCart = this.reply.showAddToCart;
+          this.container.dataset.showBuyNow = this.reply.showBuyNow;
+
+          this.updateDisplaySettings();
+          this.applyCustomCSS();
+        }
+      }
+
+      updateDisplaySettings() {
+        this.displayMode = this.reply.displayMode;
+        this.productsPerRow = this.reply.productsPerRow;
+        this.initialProducts = this.reply.initialProducts;
+        this.showAddToCart = this.reply.showAddToCart;
+        this.showBuyNow = this.reply.showBuyNow;
+
+        if (this.displayMode === 'carousel') {
+          this.carouselWrapper.style.display = 'block';
+          this.grid.style.display = 'none';
+        } else {
+          this.carouselWrapper.style.display = 'none';
+          this.grid.style.display = 'grid';
+          this.grid.style.gridTemplateColumns = `repeat(${this.productsPerRow}, 1fr)`;
+        }
+      }
+
+      applyCustomCSS() {
+        if (!this.reply.css) return;
+
+        const existingStyle = document.getElementById('wishlist-custom-css-api');
+        if (existingStyle) existingStyle.remove();
+
+        const styleElement = document.createElement('style');
+        styleElement.textContent = this.reply.css;
+        styleElement.id = 'wishlist-custom-css-api';
+        document.head.appendChild(styleElement);
+      }
+
+      processProducts(settings,data) {
+        let products = (data || []).filter((product) => product !== null);
+        this.products = products;
+        this.widgetSettings = settings.widgetSettings;
+
+        const wishlistItems = this.container.parentElement.querySelector('.wishlist-items');
+
+        if (this.products.length > 0) {
+          this.container.style.display = '';
+          this.container.style.opacity = '1';
+          this.container.style.pointerEvents = 'auto';
+          if (wishlistItems) wishlistItems.style.display = 'none';
+          if (this.titleElement) {
+            this.titleElement.style.display = 'block';
+          }
+
+          this.renderProducts();
+        } else {
+          if (wishlistItems) wishlistItems.style.display = 'block';
+          this.container.style.display = 'none';
+        }
+      }
+
+      renderProducts() {
+        const targetContainer = this.displayMode === 'carousel' ? this.carousel : this.grid;
+        const productsToShow =
+        this.displayMode === 'grid' ? Math.min(this.products.length, this.initialProducts) : this.products.length;
+
+        this.currentlyShown = productsToShow;
+        targetContainer.innerHTML = '';
+        
+        const cardRenderer = new ProductCardRendererwishlist(this.reply,this.widgetSettings);
+        this.products.slice(0, productsToShow).forEach((product) => {
+          if(product){
+          const card = cardRenderer.createCard(product);
+          targetContainer.appendChild(card);}
+        });
+
+        this.setupShowMoreButton();
+        this.initCarouselIfNeeded();
+      }
+
+      setupShowMoreButton() {
+        if (this.displayMode !== 'grid' || this.products.length <= this.currentlyShown) {
+          this.showMoreContainer.style.display = 'none';
+          return;
+        }
+
+        this.showMoreContainer.style.display = 'block';
+        this.showMoreButton.onclick = () => this.handleShowMore();
+      }
+
+      handleShowMore() {
+        const additionalProducts = Math.min(this.products.length - this.currentlyShown, this.initialProducts);
+
+        if (additionalProducts <= 0) return;
+
+        const cardRenderer = new ProductCardRendererwishlist(this.reply,this.widgetSettings);
+
+        this.products.slice(this.currentlyShown, this.currentlyShown + additionalProducts).forEach((product) => {
+          const card = cardRenderer.createCard(product);
+          this.grid.appendChild(card);
+        });
+
+        this.currentlyShown += additionalProducts;
+
+        if (this.currentlyShown >= this.products.length) {
+          this.showMoreContainer.style.display = 'none';
+        }
+      }
+
+      initCarouselIfNeeded() {
+        if (this.displayMode !== 'carousel') return;
+
+        if (this.carouselController) {
+          this.carouselController.destroy();
+        }
+
+        this.carouselController = new CarouselControllerwishlist(
+          this.carousel,
+          this.prevBtn,
+          this.nextBtn,
+          this.reply.cardLayout
+        );
+        this.carouselController.init();
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const containers = document.querySelectorAll('.wishlist-root');
+      containers.forEach((container) => {
+        const app = new wishlistApp(container);
+        app.init();
+      });
+    });
+
+    {% comment %} document.addEventListener('DOMContentLoaded', function () {
+      function processProductCardCSS(css) {
+        return css
+          .split('\n')
+          .filter((line) => line.includes('.wishlist-card'))
+          .join('\n');
+      }
+
+      const customCSS = document.querySelector('.wishlist-custom-css');
+      if (customCSS) {
+        const styleElement = document.createElement('style');
+        styleElement.textContent = processProductCardCSS(customCSS.textContent);
+        styleElement.id = 'wishlist-custom-css-injected';
+        document.head.appendChild(styleElement);
+      }
+    }); {% endcomment %}
+  </script>
+{% endif %}
+{% schema %}
+{
+  "name": "Account Page Wishlist",
+  "target": "section",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Title"
+    },
+    {
+      "type": "text",
+      "id": "wishlist-title",
+      "label": "Title",
+      "default": "Wishlist Products"
+    },
+    {
+      "type": "text",
+      "id": "add_to_cart_text",
+      "label": "Add to Cart Button Text",
+      "default": "Add to Cart"
+    },
+    {
+      "type": "text",
+      "id": "buy_now_text",
+      "label": "Buy Now Button Text",
+      "default": "Buy Now"
+    }
+  ]
+}
+{% endschema %}

@@ -1,0 +1,109 @@
+{% if customer.id and product.id %}
+  {%- assign uid = customer.id | hmac_sha256: 'Polina' -%}
+
+  <style>
+    .wishlist-button {
+      padding: 10px 20px;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
+    }
+    .quick-add-modal__content-info .wishlist-button{
+      display:none;
+    }
+  </style>
+
+  <div class="wishlist-button">Add to Wishlist</div>
+  <script src="{{'getsetCookie.js' | asset_url }}" ></script>
+  <script src="{{ 'wishlist.min.js' | asset_url }}" ></script>
+
+  <script>
+    console.log()
+    document.addEventListener('DOMContentLoaded', () => {
+      const header = document.querySelector('header');
+      const div = document.createElement('div');
+      div.style.position = 'fixed';
+      div.style.top = '50px';
+      div.style.left = '50%';
+      div.style.transform = 'translateX(-50%)';
+      div.style.zIndex = '1000';
+      if (header) header.appendChild(div);
+
+      new WishlistButton({
+        customerId: '{{ customer.id }}',
+        productId: '{{ product.id }}',
+        uid: '{{ uid }}',
+        storeUrl: '{{ shop.permanent_domain }}',
+        currency: '{{ localization.country.currency.iso_code }}',
+        data: {
+          icon: '{{ block.settings.icon }}',
+          beforeText: '{{ block.settings.beforeText }}',
+          afterText: '{{ block.settings.afterText }}',
+          bgColor: '{{ block.settings.bgColor }}',
+          textColor: '{{ block.settings.textColor }}',
+          borderRadius: '{{ block.settings.borderRadius }}',
+        },
+      });
+    });
+  </script>
+{% else %}
+  <div class="wishlist-button" style="display: none;">Add to Wishlist</div>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Account Page PDP",
+  "target": "section",
+  "settings": [
+    {
+      "type": "select",
+      "id": "icon",
+      "label": "Wishlist Icon",
+      "default": "heart",
+      "options": [
+        { "value": "heart", "label": "Heart" },
+        { "value": "star", "label": "Star" },
+        { "value": "plus", "label": "Plus" }
+      ]
+    },
+    {
+      "type": "text",
+      "id": "beforeText",
+      "label": "Text Before Adding",
+      "default": "Add to wishlist"
+    },
+    {
+      "type": "text",
+      "id": "afterText",
+      "label": "Text After Adding",
+      "default": "Added!"
+    },
+    {
+      "type": "color",
+      "id": "bgColor",
+      "label": "Button Background Color",
+      "default": "#000000"
+    },
+    {
+      "type": "color",
+      "id": "textColor",
+      "label": "Button Text Color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "range",
+      "id": "borderRadius",
+      "label": "Border Radius (px)",
+      "min": 0,
+      "max": 50,
+      "step": 1,
+      "default": 10
+    }
+  ]
+}
+{% endschema %}

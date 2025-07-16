@@ -1,0 +1,37 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "83ede390ef8b7e1baf4619f07d16cf13"
+application_url = "https://dista-accountpage-wishlist.onrender.com"
+embedded = true
+name = "Account-Wishlist"
+handle = "account-wishlist"
+
+[webhooks]
+api_version = "2025-04"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks/app/uninstalled"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/scopes_update" ]
+  uri = "/webhooks/app/scopes_update"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "write_products,write_customers,read_customers,customer_write_customers,customer_read_customers,read_orders,write_orders"
+
+[auth]
+redirect_urls = [
+  "https://dista-accountpage-wishlist.onrender.com/auth/callback",
+  "https://dista-accountpage-wishlist.onrender.com/auth/shopify/callback",
+  "https://dista-accountpage-wishlist.onrender.com/api/auth/callback"
+]
+
+[pos]
+embedded = false
+
+[build]
+dev_store_url = "distaxstaging.myshopify.com"
+automatically_update_urls_on_dev = true
+include_config_on_deploy = true

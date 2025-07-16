@@ -1,0 +1,166 @@
+{% if customer.id %}
+  {%- assign uid = customer.id | hmac_sha256: 'Polina' -%}
+
+  {%- assign layout = cardLayout | default: 'vertical' -%}
+
+  <link rel="stylesheet" href="{{ 'product-card.min.css' | asset_url }}">
+
+  <div
+    class="wishlist-card {% if layout == 'horizontal' %}wishlist-card--horizontal{% endif %}"
+    data-product-id="{{ product.id }}"
+    data-card-layout="{{ layout }}"
+    style="
+      --show-add-to-cart: {% if section.settings.show_add_to_cart %}block{% else %}none{% endif %};
+      --show-buy-now: {% if section.settings.show_buynow %}block{% else %}none{% endif %};
+    "
+  >
+    <div class="wishlist-card-delete" onclick="handleDeleteClick(event)">
+      <svg width="14" height="15" viewBox="0 0 18 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M15.0254 4.56238L14.4986 13.0837C14.364 15.2609 14.2967 16.3494 13.751 17.1321C13.4812 17.519 13.1338 17.8456 12.731 18.091C11.9162 18.5874 10.8255 18.5874 8.64422 18.5874C6.46004 18.5874 5.36795 18.5874 4.55259 18.0901C4.14947 17.8442 3.80199 17.5171 3.53227 17.1295C2.98673 16.3456 2.92093 15.2555 2.78931 13.0753L2.27539 4.56238" stroke="#020202" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M1 4.56228H16.3M12.0974 4.56228L11.5171 3.36525C11.1316 2.5701 10.9389 2.17252 10.6065 1.92457C10.5327 1.86957 10.4546 1.82064 10.373 1.77828C10.0048 1.58728 9.563 1.58728 8.67935 1.58728C7.77351 1.58728 7.32058 1.58728 6.94633 1.78628C6.86338 1.83039 6.78424 1.88129 6.7097 1.93847C6.37339 2.19648 6.18553 2.6086 5.80981 3.43285L5.29498 4.56228" stroke="#020202" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M6.52539 13.9125L6.52539 8.81248" stroke="#020202" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M10.7754 13.9124L10.7754 8.81238" stroke="#020202" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="wishlist-image-wrapper">
+      <a href="{{ product.url }}" class="wishlist-image-link">
+        <img
+          src="{{ product.featuredImage.url }}| ''"
+          alt="{{product.featuredImage.title | escape }}"
+          class="wishlist-image"
+          loading="lazy"
+          width="100%"
+          height="100%"
+        >
+      </a>
+    </div>
+
+    <div class="wishlist-details">
+      <a href="{{ product.url }}" class="wishlist-title"></a>
+      <a href="{{ product.url }}" class="wishlist-reviews-link">
+        <div class="wishlist-reviews">
+          <div class="wishlist-stars" style="--rating: {{ product.rating }};">★★★★★</div>
+          <span class="wishlist-review-count"></span>
+        </div>
+      </a>
+
+      <div class="wishlist-price-wrapper">
+        <span class="wishlist-price"></span>
+        <span class="wishlist-compare-price"></span>
+        <div class="wishlist-badge"></div>
+      </div>
+
+      <div class="wishlist-button-container">
+        <button
+          type="button"
+          class="wishlist-atc-button quick-view-btn"
+          data-product="{{ product | json }}"
+          data-title="{{ product.title | escape }}"
+          data-action="add-to-cart"
+          data-has-variants=""
+          style="display: var(--show-add-to-cart);"
+          aria-label="Add {{ product.title }} to cart"
+          data-product-card-swatch-id="{{ product.id | split: '/' | last }}"
+        >
+          <span class="wishlist-atc-button-text">{{ add_to_cart_text }}</span>
+        </button>
+
+        <button
+          type="button"
+          class="wishlist-buy-now-button quick-view-btn"
+          data-product="{{ product | json }}"
+          data-title="{{ product.title | escape }}"
+          data-action="buy-now"
+          data-has-variants=""
+          style="display: var(--show-buy-now);"
+          aria-label="buy-now {{ product.title }}"
+        >
+          <span class="wishlist-buy-now-button-text">{{ buy_now_text | default: 'Buy Now' }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+{{ 'quick-view.min.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'quick.min.js' | asset_url }}" async></script>
+<script>
+  (function () {
+    const styleId = 'wishlist-custom-quick-view-styles';
+    if (document.getElementById(styleId)) {
+      return;
+    }
+    const shopDomain = '{{ shop.permanent_domain }}';
+    const apiUrl = `/apps/apw/app/quickviewcssRO?shop=${shopDomain}`;
+
+    fetch(apiUrl)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.json();
+      })
+      .then((data) => {
+        if (data.css) {
+          const style = document.createElement('style');
+          style.id = styleId;
+          style.innerHTML = data.css;
+          document.head.appendChild(style);
+        }
+      })
+      .catch((error) => {
+        console.error('Error fetching Quick View custom CSS:', error);
+      });
+  })();
+</script>
+
+<script>
+  async function handleDeleteClick(event) {
+    event.stopPropagation();
+    const card = event.currentTarget.closest('.wishlist-card');
+    const productId = card.dataset.productId;
+    if (!card || !productId) return;
+    const customerId = '{{ customer.id }}';
+    const storeUrl = '{{ shop.permanent_domain }}';
+    const uid = '{{ uid }}';
+    const jwtToken = window.WishlistUtils.getCookie('jwt');
+    const currency = '{{ localization.country.currency.iso_code }}';
+    try {
+      const response = await fetch(`/apps/apw/app/apiremove`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId,
+          productId,
+          uid,
+          storeUrl,
+          token: jwtToken,
+        }),
+      });
+      const result = await response.json();
+      const container = document.querySelector('.wishlist-root');
+      const WishlistApp = new wishlistApp(container);
+      if (result.reply == 'Successful') {
+        card.remove();
+        WishlistApp.fetchWishlist();
+
+        // Dispatch a custom event to notify the wishlist button
+        document.dispatchEvent(new CustomEvent('wishlist:icon-toggled', {
+          detail: { productId }
+        }));
+
+        if (window.wishlistIconManager) {
+          window.wishlistIconManager.updateWishlistStatus().then(() => {
+            window.wishlistIconManager.updateIconsForProduct(productId);
+          });
+        }
+      }
+      if (result.token) {
+        globalToken = result.token;
+        window.WishlistUtils.setCookie('jwt', globalToken, 3.5);
+      }
+    } catch (err) {
+      console.log(err);
+    }
+  }
+</script>
